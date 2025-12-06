@@ -16,9 +16,8 @@ import os
 import subprocess
 from typing import Callable
 
-from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
-from ciso_agent.tools.utils import trim_quote
+from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
 
 
 class RunKubectlToolInput(BaseModel):
@@ -30,7 +29,7 @@ class RunKubectlToolInput(BaseModel):
     script_file: str = Field(description="A filepath. If provided, save the kubectl command as a script at the specified file.", default="")
 
 
-class RunKubectlTool(BaseTool):
+class RunKubectlTool(InstrumentedBaseTool):
     name: str = "RunKubectlTool"
     # correct description
     description: str = """The tool to execute a kubectl command.
@@ -63,7 +62,7 @@ Hint:
         if "read_only" in kwargs:
             self.read_only = kwargs["read_only"]
 
-    def _run(self, args: str, output_file: str, return_output: str = "False", script_file: str = "") -> str:
+    def _run_instrumented(self, args: str, output_file: str, return_output: str = "False", script_file: str = "") -> str:
         print("RunKubectlTool is called")
         output_file = trim_quote(output_file)
         script_file = trim_quote(script_file)

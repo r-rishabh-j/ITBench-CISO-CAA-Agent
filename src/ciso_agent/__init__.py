@@ -11,3 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from ciso_agent.metrics import (
+    get_metrics_collector,
+    MetricsCollector,
+    LLMCallMetrics,
+    ToolCallMetrics,
+    AgentTurnMetrics,
+    instrument_tool,
+)
+
+__all__ = [
+    "get_metrics_collector",
+    "MetricsCollector",
+    "LLMCallMetrics",
+    "ToolCallMetrics",
+    "AgentTurnMetrics",
+    "instrument_tool",
+]

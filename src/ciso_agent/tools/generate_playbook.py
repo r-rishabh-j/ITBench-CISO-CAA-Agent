@@ -17,8 +17,7 @@ import os
 from typing import Callable, Union
 
 from ciso_agent.llm import get_llm_params, call_llm, extract_code
-from ciso_agent.tools.utils import trim_quote
-from crewai.tools import BaseTool
+from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
 from pydantic import BaseModel, Field
 
 
@@ -32,7 +31,7 @@ class GeneratePlaybookToolInput(BaseModel):
     playbook_file: str = Field(description="A filepath for the Playbook to be saved.", default="playbook.yml")
 
 
-class GeneratePlaybookTool(BaseTool):
+class GeneratePlaybookTool(InstrumentedBaseTool):
     name: str = "GeneratePlaybookTool"
     # correct description
     description: str = "The tool to generate a Playbook. This tool returns the generated Playbook."
@@ -50,7 +49,7 @@ class GeneratePlaybookTool(BaseTool):
         if "workdir" in kwargs:
             self.workdir = kwargs["workdir"]
 
-    def _run(self, sentence: Union[str, dict], playbook_file: str = "playbook.yml") -> str:
+    def _run_instrumented(self, sentence: Union[str, dict], playbook_file: str = "playbook.yml") -> str:
         print("GeneratePlaybookTool is called")
         playbook_file = trim_quote(playbook_file)
 

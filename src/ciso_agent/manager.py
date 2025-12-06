@@ -26,6 +26,7 @@ from ciso_agent.agents.kubernetes_kubectl_opa import KubernetesKubectlOPACrew
 from ciso_agent.agents.kubernetes_kyverno import KubernetesKyvernoCrew
 from ciso_agent.agents.rhel_playbook_opa import RHELPlaybookOPACrew
 from ciso_agent.llm import get_llm_params, call_llm, extract_code
+from ciso_agent.metrics import get_metrics_collector
 
 load_dotenv()
 
@@ -107,7 +108,11 @@ class CISOManager:
 
         self.app = workflow.compile()
 
-    def invoke(self, state: CISOState):
+    def invoke(self, state: CISOState, export_metrics: bool = True):
+        # Reset metrics for this invocation
+        metrics_collector = get_metrics_collector()
+        metrics_collector.reset()
+        
         print("\033[36m" + "=" * 90 + "\033[0m")
         print("\033[36m # Goal:\033[0m")
         print("\033[36m" + "=" * 90 + "\033[0m")
@@ -125,6 +130,20 @@ class CISOManager:
         print("\033[36m" + "=" * 90 + "\033[0m")
         print("")
         print("\033[36m" + yaml.safe_dump(o_dict["result"], sort_keys=False, width=1024) + "\033[0m")
+        
+        # Print and export metrics
+        metrics_collector.print_summary()
+        
+        if export_metrics:
+            workdir = state.get("workdir", ".")
+            if workdir:
+                metrics_path = os.path.join(workdir, "metrics.json")
+            else:
+                metrics_path = "metrics.json"
+            metrics_collector.export_metrics(metrics_path)
+            o_dict["metrics_path"] = metrics_path
+            o_dict["metrics_summary"] = metrics_collector.get_summary()
+        
         return o_dict
 
     def save_graph(self):
