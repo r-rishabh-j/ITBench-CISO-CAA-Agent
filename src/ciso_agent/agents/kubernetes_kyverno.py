@@ -24,7 +24,7 @@ import typing
 from openinference.instrumentation.crewai import CrewAIInstrumentor
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.instrumentation.litellm import LiteLLMInstrumentor
-
+from collections import defaultdict
 
 load_dotenv()
 
@@ -185,9 +185,11 @@ You can omit `namespace` in `deployed_resource` if the policy is a cluster-scope
             cache=False,
         )
         inputs = {}
+        
         with langfuse.start_as_current_observation(as_type="span", name="crewai-index-trace"):
             output = crew.kickoff(inputs=inputs)
         # print_attributes(output)
+        print("Tokens from crew ai:", output.token_usage)
         result_str = output.raw.strip()
         if not result_str:
             raise ValueError("crew agent returned an empty string.")
@@ -218,6 +220,11 @@ You can omit `namespace` in `deployed_resource` if the policy is a cluster-scope
         print("TRACE OBSERVATIONS")
         print("=" * 80)
 
+        tool_call_latencies = []
+        reasoning_token_usages = []
+        tasks_token_usages = defaultdict(list)
+        tasks = []
+
         for idx, obs in enumerate(observations.data, 1):
             print(f"\n📊 Observation #{idx}")
             print(f"{'─'*80}")
@@ -232,17 +239,57 @@ You can omit `namespace` in `deployed_resource` if the policy is a cluster-scope
                     if not callable(value):
                         # Format attribute name with proper spacing
                         attr_display = attr.replace("_", " ").title()
+                        if(attr_display == "Usage Details" and isinstance(value, dict)):
+                            for k, v in value.items():
+                                if("reasoning" in k.lower()):
+                                    reasoning_token_usages.append((obs.name, k, v))
+                        if(attr_display == "Metadata"):
+                            if("attributes" in value and isinstance(value["attributes"], dict)):
+                                for k, v in value["attributes"].items():
+                                    if("task_id" in k.lower()):
+                                        task_id = v
+                                        obs_id = obs.id
+                                        tasks.append((task_id, obs_id))
                         # Truncate long values
                         value_str = str(value)
+                        if(attr_display == "Type" and value_str == "TOOL"):
+                            tool_call_latencies.append((obs.name, obs.latency))
                         if len(value_str) > 100:
                             value_str = value_str[:97] + "..."
+                        value_str = value_str.replace("\n", " ").replace("\r", " ").replace("\t", " ")
                         print(f"  {attr_display:<25} {value_str}")
                 except Exception as e:
                     print(f"  {attr:<25} <Error: {str(e)[:50]}>")
+            
+        for task_id, obs_id in tasks:
+            for obs in observations.data:
+                if obs.parent_observation_id == obs_id:
+                    if(obs.usage_details):
+                        tasks_token_usages[task_id].append(obs.usage_details)
+        
+        for task_id, usages in tasks_token_usages.items():
+            average_usage = 0
+            count = 0
+            for usage in usages:
+                if "total" in usage:
+                    average_usage += usage["total"]
+                    count += 1
+            if count > 0:
+                average_usage /= count
+                print(f"\nAverage token usage for Task ID {task_id}: {average_usage} tokens")
+                        
 
         print(f"\n{'='*80}")
         print(f"Total Observations: {len(observations.data)}")
         print(f"{'='*80}\n")
+
+        print("Tool Call Latencies:")
+        for tool_name, latency in tool_call_latencies:
+            print(f"  {tool_name}: {latency} ms")
+        
+        print("\nReasoning Token Usages:")
+        for obs_name, usage_type, token_count in reasoning_token_usages:
+            print(f"  {obs_name} - {usage_type}: {token_count} tokens")
 
 
 if __name__ == "__main__":
