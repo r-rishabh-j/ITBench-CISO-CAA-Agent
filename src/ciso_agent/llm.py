@@ -14,12 +14,15 @@
 
 import os
 import json
+import time
 
 from crewai import LLM
 from langchain.schema import HumanMessage, SystemMessage
 from langchain_ibm import ChatWatsonx
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+from ciso_agent.metrics import get_metrics_collector
 
 api_domain_watsonx = "cloud.ibm.com"
 api_domain_azure = "azure.com"
@@ -199,6 +202,16 @@ def set_watsonx_env_vars(model: str = "", api_url: str = "", api_key: str = "", 
 
 
 def call_llm(prompt: str, model: str = "", api_key: str = "", api_url: str = "") -> str:
+    """
+    Call the LLM with metrics instrumentation.
+    
+    Tracks:
+    - Time to First Token (TTFT)
+    - Token generation speed (tokens/sec)
+    - Total call duration
+    """
+    collector = get_metrics_collector()
+    
     _llm = init_llm(model=model, api_key=api_key, api_url=api_url)
     if not _llm:
         _llm = ChatOpenAI(temperature=0, model=model)
@@ -245,10 +258,97 @@ You are helpful and harmless and you follow ethical guidelines and promote posit
 
     messages.append(HumanMessage(content=prompt))
 
-    response = _llm.invoke(messages)
-    answer = response.content
-    # print("[DEBUG] answer:", answer)
-    return answer
+    # Start metrics tracking
+    call_id = collector.start_llm_call(model)
+    
+    try:
+        # Try streaming for accurate TTFT measurement
+        first_token_recorded = False
+        answer_chunks = []
+        
+        # Check if LLM supports streaming
+        if hasattr(_llm, 'stream'):
+            try:
+                for chunk in _llm.stream(messages):
+                    if not first_token_recorded:
+                        collector.record_first_token(call_id)
+                        first_token_recorded = True
+                    
+                    # Extract content from chunk
+                    if hasattr(chunk, 'content'):
+                        answer_chunks.append(chunk.content)
+                    elif isinstance(chunk, str):
+                        answer_chunks.append(chunk)
+                
+                answer = "".join(answer_chunks)
+                
+                # Estimate token counts (rough approximation if not provided)
+                # Using ~4 chars per token as rough estimate
+                prompt_text = prompt + (system_prompt if system_prompt else "")
+                estimated_prompt_tokens = len(prompt_text) // 4
+                estimated_completion_tokens = len(answer) // 4
+                
+                collector.end_llm_call(
+                    call_id,
+                    prompt_tokens=estimated_prompt_tokens,
+                    completion_tokens=estimated_completion_tokens
+                )
+                return answer
+                
+            except Exception:
+                # Fall back to non-streaming if streaming fails
+                # Reset the first_token_recorded flag and clear any partial TTFT metric
+                # since we're starting fresh with non-streaming
+                first_token_recorded = False
+                # Clear the incorrect TTFT from the failed streaming attempt
+                with collector._data_lock:
+                    if call_id in collector._llm_calls:
+                        collector._llm_calls[call_id].time_to_first_token = 0.0
+                pass
+        
+        # Non-streaming fallback
+        response = _llm.invoke(messages)
+        
+        # Record first token time (approximation for non-streaming)
+        if not first_token_recorded:
+            collector.record_first_token(call_id)
+        
+        answer = response.content
+        
+        # Extract token usage if available
+        prompt_tokens = 0
+        completion_tokens = 0
+        
+        if hasattr(response, 'response_metadata'):
+            metadata = response.response_metadata
+            if 'token_usage' in metadata:
+                usage = metadata['token_usage']
+                prompt_tokens = usage.get('prompt_tokens', 0)
+                completion_tokens = usage.get('completion_tokens', 0)
+            elif 'usage' in metadata:
+                usage = metadata['usage']
+                prompt_tokens = usage.get('prompt_tokens', 0)
+                completion_tokens = usage.get('completion_tokens', 0)
+        
+        # Fallback to estimation if no token counts
+        if prompt_tokens == 0:
+            prompt_text = prompt + (system_prompt if system_prompt else "")
+            prompt_tokens = len(prompt_text) // 4
+        if completion_tokens == 0:
+            completion_tokens = len(answer) // 4
+        
+        collector.end_llm_call(
+            call_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens
+        )
+        
+        return answer
+        
+    except Exception as e:
+        # Record metrics even on failure
+        collector.end_llm_call(call_id, prompt_tokens=0, completion_tokens=0)
+        raise
 
 
 def extract_code(txt: str, separator: str = "```", code_type: str = "yaml"):
