@@ -14,9 +14,9 @@
 
 import argparse
 import json
-
-from ciso_agent.manager import CISOManager, CISOState
+import os
 from ciso_agent.metrics import get_metrics_collector
+from ciso_agent.manager import CISOManager, CISOState
 
 
 def run(inputs: dict, export_metrics: bool = True):
@@ -33,9 +33,15 @@ if __name__ == "__main__":
     parser.add_argument("-g", "--goal", default="", help="The compliance goal for the agent to achieve")
     parser.add_argument("-o", "--output", default="", help="The path to the output JSON file")
     parser.add_argument("-a", "--auto-approve", action="store_true", help="do nothing for now")
+    parser.add_argument("--agent-type", default=os.getenv("AGENT_TYPE", "crew"), help="The type of agent to run (crew or plan_execute)")
     parser.add_argument("-m", "--metrics", default="", help="The path to export detailed metrics JSON file")
     parser.add_argument("--no-metrics", action="store_true", help="Disable metrics collection and export")
     args = parser.parse_args()
+
+    if args.agent_type:
+        os.environ["AGENT_TYPE"] = args.agent_type
+
+    from ciso_agent.manager import CISOState
 
     inputs = CISOState(goal=args.goal)
     export_metrics = not args.no_metrics
