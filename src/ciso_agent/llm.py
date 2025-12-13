@@ -297,6 +297,13 @@ You are helpful and harmless and you follow ethical guidelines and promote posit
                 
             except Exception:
                 # Fall back to non-streaming if streaming fails
+                # Reset the first_token_recorded flag and clear any partial TTFT metric
+                # since we're starting fresh with non-streaming
+                first_token_recorded = False
+                # Clear the incorrect TTFT from the failed streaming attempt
+                with collector._data_lock:
+                    if call_id in collector._llm_calls:
+                        collector._llm_calls[call_id].time_to_first_token = 0.0
                 pass
         
         # Non-streaming fallback
