@@ -17,8 +17,9 @@ import re
 import subprocess
 from typing import Callable
 
+from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
-from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
+from ciso_agent.tools.utils import trim_quote
 
 
 class RunPlaybookToolInput(BaseModel):
@@ -26,7 +27,7 @@ class RunPlaybookToolInput(BaseModel):
     playbook_file: str = Field(description="Playbook filepath to be run")
 
 
-class RunPlaybookTool(InstrumentedBaseTool):
+class RunPlaybookTool(BaseTool):
     name: str = "RunPlaybookTool"
     # correct description
     description: str = """The tool to run a playbook on a given host.
@@ -49,7 +50,7 @@ This tool returns the following:
         if "workdir" in kwargs:
             self.workdir = kwargs["workdir"]
 
-    def _run_instrumented(self, host: str, playbook_file: str) -> str:
+    def _run(self, host: str, playbook_file: str) -> str:
         print("RunPlaybookTool is called")
         playbook_file = trim_quote(playbook_file)
 

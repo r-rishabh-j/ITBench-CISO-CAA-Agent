@@ -17,8 +17,9 @@ import os
 import subprocess
 from typing import Callable
 
+from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
-from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
+from ciso_agent.tools.utils import trim_quote
 
 
 class RunOPARegoToolInput(BaseModel):
@@ -26,7 +27,7 @@ class RunOPARegoToolInput(BaseModel):
     input_file: str = Field(description="The filepath to the input data to be used for checking the policy")
 
 
-class RunOPARegoTool(InstrumentedBaseTool):
+class RunOPARegoTool(BaseTool):
     name: str = "RunOPARegoTool"
     # correct description
     description: str = "The tool to run OPA Rego evaluation. This tool returns the check result."
@@ -44,7 +45,7 @@ class RunOPARegoTool(InstrumentedBaseTool):
         if "workdir" in kwargs:
             self.workdir = kwargs["workdir"]
 
-    def _run_instrumented(self, policy_file: str, input_file: str) -> str:
+    def _run(self, policy_file: str, input_file: str) -> str:
         print("RunOPARegoTool is called")
         policy_file = trim_quote(policy_file)
         input_file = trim_quote(input_file)

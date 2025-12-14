@@ -17,7 +17,8 @@ import os
 from typing import Callable, Union
 
 from ciso_agent.llm import get_llm_params, call_llm, extract_code
-from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
+from ciso_agent.tools.utils import trim_quote
+from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 
@@ -31,7 +32,7 @@ class GenerateKyvernoToolInput(BaseModel):
     )
 
 
-class GenerateKyvernoTool(InstrumentedBaseTool):
+class GenerateKyvernoTool(BaseTool):
     name: str = "GenerateKyvernoTool"
     # correct description
     description: str = (
@@ -52,7 +53,7 @@ class GenerateKyvernoTool(InstrumentedBaseTool):
         if "workdir" in kwargs:
             self.workdir = kwargs["workdir"]
 
-    def _run_instrumented(self, sentence: Union[str, dict], policy_file: str, current_policy_file: str = "") -> str:
+    def _run(self, sentence: Union[str, dict], policy_file: str, current_policy_file: str = "") -> str:
         print("GenerateKyvernoTool is called")
         policy_file = trim_quote(policy_file)
         current_policy_file = trim_quote(current_policy_file)

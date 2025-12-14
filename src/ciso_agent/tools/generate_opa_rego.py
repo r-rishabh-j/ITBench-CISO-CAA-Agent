@@ -17,7 +17,8 @@ import os
 from typing import Callable, Union
 
 from ciso_agent.llm import get_llm_params, call_llm, extract_code
-from ciso_agent.tools.utils import trim_quote, InstrumentedBaseTool
+from ciso_agent.tools.utils import trim_quote
+from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 
@@ -29,7 +30,7 @@ class GenerateOPARegoToolInput(BaseModel):
     input_file: str = Field(description="The filepath to the input data to be used for checking the policy.")
 
 
-class GenerateOPARegoTool(InstrumentedBaseTool):
+class GenerateOPARegoTool(BaseTool):
     name: str = "GenerateOPARegoTool"
     # correct description
     description: str = "The tool to generate an OPA Rego policy. This tool returns the generated Rego policy."
@@ -47,7 +48,7 @@ class GenerateOPARegoTool(InstrumentedBaseTool):
         if "workdir" in kwargs:
             self.workdir = kwargs["workdir"]
 
-    def _run_instrumented(self, sentence: Union[str, dict], policy_file: str, input_file: str) -> str:
+    def _run(self, sentence: Union[str, dict], policy_file: str, input_file: str) -> str:
         print("GenerateOPARegoTool is called")
         policy_file = trim_quote(policy_file)
         input_file = trim_quote(input_file)
